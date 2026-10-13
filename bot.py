@@ -28,9 +28,6 @@ bot = telebot.TeleBot(TOKEN)
 CHANNEL_COMMUNITY = "@social_downloader_community"
 CHANNEL_NEWS = "@social_downloader_news"
 
-# ইউজارهای লিংক ও মেসেজ আইডি সেভ রাখার ডিকশনারি
-user_data = {}
-
 def check_subscription(user_id):
     try:
         member_comm = bot.get_chat_member(CHANNEL_COMMUNITY, user_id)
@@ -60,7 +57,6 @@ def send_welcome(message):
         markup.add(telebot.types.InlineKeyboardButton("📢 News & Updates", url="https://t.me/social_downloader_news"))
         markup.add(telebot.types.InlineKeyboardButton("✅ I have Joined", callback_data="check_join"))
         
-        # আপনার পছন্দের স্ক্রিনশটের হুবহু ওয়েলকাম লেখা
         welcome_text = (
             "👋 **Welcome to All-in-One Video Downloader Bot!**\n\n"
             "Please join our community and news channel below first, then send any video link (YouTube, Facebook, TikTok, Instagram, etc.) to download! 📥"
@@ -74,7 +70,6 @@ def verify_join(call):
     
     if check_subscription(user_id):
         bot.answer_callback_query(call.id, "✅ Verification Successful!")
-        # আপনার পছন্দের স্ক্রিনশটের হুবহু ভেরিফিকেশন লেখা
         bot.edit_message_text(
             "🎉 **Verification Successful!**\n\nNow send any video link from YouTube, Facebook, TikTok, Instagram, or Shorts to download! 📥",
             chat_id=chat_id,
@@ -106,95 +101,42 @@ def handle_url(message):
         bot.reply_to(message, "⚠️ Please send a valid video link.")
         return
 
-    user_data[message.chat.id] = {
-        'url': url,
-        'msg_id': message.message_id
+    user_msg_id = message.message_id
+    chat_id = message.chat.id
+
+    # সরাসরি অটোমেটিক ডাউনলোড শুরু হয়ে যাবে
+    sent_msg = bot.reply_to(message, "⏳ **Downloading video, please wait...**", parse_mode="Markdown")
+    file_name = f"video_{chat_id}.mp4"
+
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': file_name,
+        'max_filesize': 50 * 1024 * 1024,
+        'quiet': True,
+        'no_warnings': True
     }
 
-    markup = telebot.types.InlineKeyboardMarkup()
-    markup.add(
-        telebot.types.InlineKeyboardButton("🎬 Video", callback_data="dl_video"),
-        telebot.types.InlineKeyboardButton("🎵 Audio", callback_data="dl_audio")
-    )
-    
-    bot.reply_to(message, "📥 **Choose your format:**", parse_mode="Markdown", reply_markup=markup)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-@bot.callback_query_handler(func=lambda call: call.data in ["dl_video", "dl_audio"])
-def callback_query(call):
-    chat_id = call.message.chat.id
-    
-    if chat_id not in user_data:
-        bot.answer_callback_query(call.id, "⚠️ Link expired or not found. Please send the link again.")
-        return
+        bot.edit_message_text("⬆️ **Uploading video...**", chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown")
 
-    url = user_data[chat_id]['url']
-    user_msg_id = user_data[chat_id]['msg_id']
+        with open(file_name, 'rb') as video:
+            bot.send_video(chat_id, video, caption="✅ **Your video is ready!**", parse_mode="Markdown")
 
-    if call.data == "dl_video":
-        bot.edit_message_text("⏳ **Downloading video, please wait...**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
-        file_name = f"video_{chat_id}.mp4"
-
-        ydl_opts = {
-            'format': 'best',
-            'outtmpl': file_name,
-            'max_filesize': 50 * 1024 * 1024,
-            'quiet': True,
-            'no_warnings': True
-        }
-
+        # কাজ শেষ, প্রসেসিং মেসেজ এবং ইউজারের লিংক মেসেজ মুছে দেওয়া হচ্ছে
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+            bot.delete_message(chat_id, sent_msg.message_id)
+            bot.delete_message(chat_id, user_msg_id)
+        except:
+            pass
 
-            bot.edit_message_text("⬆️ **Uploading video...**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
-
-            with open(file_name, 'rb') as video:
-                bot.send_video(chat_id, video, caption="✅ **Your video is ready!**", parse_mode="Markdown")
-
-            try:
-                bot.delete_message(chat_id, call.message.message_id)
-                bot.delete_message(chat_id, user_msg_id)
-            except:
-                pass
-
-        except Exception as e:
-            bot.edit_message_text("❌ **Failed to download video!** Make sure the size is under 50MB.", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
-        finally:
-            if os.path.exists(file_name):
-                os.remove(file_name)
-
-    elif call.data == "dl_audio":
-        bot.edit_message_text("⏳ **Downloading audio, please wait...**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
-        file_name = f"audio_{chat_id}.m4a"
-
-        ydl_opts = {
-            'format': 'bestaudio',
-            'outtmpl': file_name,
-            'max_filesize': 50 * 1024 * 1024,
-            'quiet': True,
-            'no_warnings': True
-        }
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-
-            bot.edit_message_text("⬆️ **Uploading audio...**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
-
-            with open(file_name, 'rb') as audio:
-                bot.send_audio(chat_id, audio, caption="✅ **Your audio is ready!**", parse_mode="Markdown")
-
-            try:
-                bot.delete_message(chat_id, call.message.message_id)
-                bot.delete_message(chat_id, user_msg_id)
-            except:
-                pass
-
-        except Exception as e:
-            bot.edit_message_text("❌ **Failed to download audio!** Make sure the size is under 50MB.", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
-        finally:
-            if os.path.exists(file_name):
-                os.remove(file_name)
+    except Exception as e:
+        bot.edit_message_text("❌ **Failed to download video!** Make sure the size is under 50MB.", chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown")
+    finally:
+        if os.path.exists(file_name):
+            os.remove(file_name)
 
 if __name__ == "__main__":
     keep_alive()
