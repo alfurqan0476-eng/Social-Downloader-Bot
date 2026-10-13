@@ -24,34 +24,75 @@ def keep_alive():
 TOKEN = "8625944891:AAEm0k5zKbDgLYhOK7rPqyjKehWWS27njOs"
 bot = telebot.TeleBot(TOKEN)
 
-# সাময়িকভাবে ইউজারের লিংক জমা রাখার ডিকশনারি
+# আপনার চ্যানেল ও গ্রুপের ইউজারনেম
+CHANNEL_COMMUNITY = "@social_downloader_community"
+CHANNEL_NEWS = "@social_downloader_news"
+
 user_links = {}
+
+# ইউজার চ্যানেল ও গ্রুপে জয়েন করেছে কি না তা চেক করার ফাংশন
+def check_subscription(user_id):
+    try:
+        member_comm = bot.get_chat_member(CHANNEL_COMMUNITY, user_id)
+        member_news = bot.get_chat_member(CHANNEL_NEWS, user_id)
+        
+        allowed_statuses = ['creator', 'administrator', 'member']
+        if member_comm.status in allowed_statuses and member_news.status in allowed_statuses:
+            return True
+    except Exception as e:
+        print(f"Error checking sub: {e}")
+        return False
+    return False
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     markup = telebot.types.InlineKeyboardMarkup()
-    # আপনার আসল গ্রুপ ও চ্যানেলের লিংক এখানে যুক্ত করা হলো
     markup.add(telebot.types.InlineKeyboardButton("📢 Join Community", url="https://t.me/social_downloader_community"))
     markup.add(telebot.types.InlineKeyboardButton("📢 News & Updates", url="https://t.me/social_downloader_news"))
+    markup.add(telebot.types.InlineKeyboardButton("✅ I have Joined", callback_data="check_join"))
     
     welcome_text = (
         "👋 **Welcome to All-in-One Video Downloader Bot!**\n\n"
-        "Please join our community and news channel below first, then send any video link (YouTube, Facebook, TikTok, Instagram, etc.) to download! 📥"
+        "Please join our community and news channel below, then click **'I have Joined'** to start downloading videos! 📥"
     )
     bot.reply_to(message, welcome_text, parse_mode="Markdown", reply_markup=markup)
 
+@bot.callback_query_handler(func=lambda call: call.data == "check_join")
+def verify_join(call):
+    user_id = call.from_user.id
+    if check_subscription(user_id):
+        bot.answer_callback_query(call.id, "✅ Thank you! You have joined. Now send any video link.")
+        bot.edit_message_text(
+            "🎉 **Verification Successful!**\n\nNow send any video link from YouTube, Facebook, TikTok, Instagram, or Shorts to download! 📥",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="Markdown"
+        )
+    else:
+        bot.answer_callback_query(call.id, "❌ You haven't joined both channels/groups yet! Please join first.", show_alert=True)
+
 @bot.message_handler(func=lambda message: True)
 def handle_url(message):
-    url = message.text.strip()
+    user_id = message.from_user.id
     
+    # ইউজার জয়েন না করে থাকলে লিংক পাঠালে তাকে আবার জয়েন করতে বলবে
+    if not check_subscription(user_id):
+        markup = telebot.types.InlineKeyboardMarkup()
+        markup.add(telebot.types.InlineKeyboardButton("📢 Join Community", url="https://t.me/social_downloader_community"))
+        markup.add(telebot.types.InlineKeyboardButton("📢 News & Updates", url="https://t.me/social_downloader_news"))
+        markup.add(telebot.types.InlineKeyboardButton("✅ I have Joined", callback_data="check_join"))
+        
+        bot.reply_to(message, "⚠️ **Please join our channel and group first!**\nClick the buttons below to join, then click **'I have Joined'**.", parse_mode="Markdown", reply_markup=markup)
+        return
+
+    url = message.text.strip()
     if not (url.startswith("http://") or url.startswith("https://")):
         bot.reply_to(message, "⚠️ Please send a valid video link.")
         return
 
-    # ইউজারের লিংকটি সেভ করে রাখা হচ্ছে
     user_links[message.chat.id] = url
 
-    # ভিডিও বা অডিও সিলেক্ট করার জন্য দুটি বাটন তৈরি করা হলো
+    # ভিডিও বা অডিও সিলেক্ট করার বাটন
     markup = telebot.types.InlineKeyboardMarkup()
     markup.add(
         telebot.types.InlineKeyboardButton("🎬 Video", callback_data="dl_video"),
@@ -60,7 +101,7 @@ def handle_url(message):
     
     bot.reply_to(message, "📥 **Choose your format:**\nDo you want to download this as a Video or Audio?", parse_mode="Markdown", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(func=lambda call: call.data in ["dl_video", "dl_audio"])
 def callback_query(call):
     chat_id = call.message.chat.id
     
