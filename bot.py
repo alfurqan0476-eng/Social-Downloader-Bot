@@ -44,6 +44,16 @@ def check_subscription(user_id):
         return False
     return False
 
+# ----------------- গ্রুপে ফরওয়ার্ড করা মেসেজ অটোমেটিক ডিলিট করার লজিক -----------------
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and (message.forward_from or message.forward_from_chat))
+def delete_forwarded_messages(message):
+    try:
+        # ফরওয়ার্ড করা মেসেজটি সাথে সাথে ডিলিট করে দেবে
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as e:
+        print(f"Error deleting forwarded message: {e}")
+# --------------------------------------------------------------------------------------
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     user_id = message.from_user.id
@@ -101,7 +111,9 @@ def handle_url(message):
 
     url = message.text.strip()
     if not (url.startswith("http://") or url.startswith("https://")):
-        bot.reply_to(message, "⚠️ Please send a valid video link.")
+        # গ্রুপে সাধারণ কথাবার্তায় ভুল মেসেজ এড়িয়ে যাবে, ইনবক্সে মেসেজ দেখাবে
+        if message.chat.type == 'private':
+            bot.reply_to(message, "⚠️ Please send a valid video link.")
         return
 
     # ইউজারের তথ্য সেভ করা হচ্ছে
