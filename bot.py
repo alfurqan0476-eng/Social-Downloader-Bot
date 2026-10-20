@@ -146,10 +146,10 @@ def callback_query(call):
         bot.edit_message_text("⏳ **Downloading video, please wait...**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
         file_name = f"video_{chat_id}.mp4"
 
+        # আনলিমিটেড সাইজের জন্য max_filesize উঠিয়ে দেওয়া হলো
         ydl_opts = {
             'format': 'best',
             'outtmpl': file_name,
-            'max_filesize': 50 * 1024 * 1024,
             'quiet': True,
             'no_warnings': True
         }
@@ -171,7 +171,7 @@ def callback_query(call):
                 pass
 
         except Exception as e:
-            bot.edit_message_text("❌ **Failed to download video!** Make sure the size is under 50MB.", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
+            bot.edit_message_text("❌ **Failed to download video! Please try another link.**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
         finally:
             if os.path.exists(file_name):
                 os.remove(file_name)
@@ -180,10 +180,10 @@ def callback_query(call):
         bot.edit_message_text("⏳ **Downloading audio, please wait...**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
         file_name = f"audio_{chat_id}.m4a"
 
+        # আনলিমিটেড সাইজের জন্য max_filesize উঠিয়ে দেওয়া হলো
         ydl_opts = {
             'format': 'bestaudio',
             'outtmpl': file_name,
-            'max_filesize': 50 * 1024 * 1024,
             'quiet': True,
             'no_warnings': True
         }
@@ -205,7 +205,7 @@ def callback_query(call):
                 pass
 
         except Exception as e:
-            bot.edit_message_text("❌ **Failed to download audio!** Make sure the size is under 50MB.", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
+            bot.edit_message_text("❌ **Failed to download audio! Please try another link.**", chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
         finally:
             if os.path.exists(file_name):
                 os.remove(file_name)
